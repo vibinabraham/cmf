@@ -87,7 +87,9 @@ def test_1():
     if do_hci:
         print(" HCI:        %12.8f Dim:%6d" % (ehci, hci_dim))
 
-    assert()
+    assert(abs(-55.38164777  - Ecmf) < 1e-7)
+    assert(abs(-54.03657171  - Edps) < 1e-7)
+    assert(abs(-55.34996105  - Escf) < 1e-7)
     
 if __name__== "__main__":
     test_1() 
