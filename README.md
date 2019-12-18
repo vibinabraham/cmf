@@ -5,7 +5,7 @@ Cluster based mean field
 1. Download
     
         git clone https://github.com/vibinabraham/cmf.git
-        cd bc-ci/
+        cd cmf/
 
 2. create virtual environment (optional)
          
