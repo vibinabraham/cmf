@@ -10,14 +10,14 @@ from hubbard_fn import *
 from cmf import *
 from pyscf_helper import *
 import pyscf
+
+import pyscf
 ttt = time.time()
-np.set_printoptions(suppress=True, precision=4, linewidth=1500)
-pyscf.lib.num_threads(1)  #with degenerate states and multiple processors there can be issues
+pyscf.lib.num_threads(1) #with degenerate states and multiple processors there can be issues
 
-
-for ri in range(0,26):
+def test_1():
     ###     PYSCF INPUT
-    r0 = 0.95 + 0.05 * ri
+    r0 = 1
     molecule = '''
     N   {1}  {1}   {1} 
     H   {0}   {0}   0
@@ -87,4 +87,7 @@ for ri in range(0,26):
     if do_hci:
         print(" HCI:        %12.8f Dim:%6d" % (ehci, hci_dim))
 
-
+    assert()
+    
+if __name__== "__main__":
+    test_1() 
