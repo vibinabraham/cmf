@@ -19,9 +19,15 @@ class PyscfHelper(object):
 
         self.h      = None
         self.g      = None
+        self.n_orb  = None
         #self.na     = 0
         #self.nb     = 0
         self.ecore  = 0
+        self.C      = None
+        self.S      = None
+        self.J      = None
+        self.K      = None
+        self.Escf = None
 
     def init(self,molecule,charge,spin,basis_set,orb_basis='scf',cas=False,cas_nstart=None,cas_nstop=None,cas_nel=None,loc_nstart=None,loc_nstop=None):
     # {{{
@@ -53,18 +59,24 @@ class PyscfHelper(object):
         mf = scf.RHF(mol).run()
         #C = mf.mo_coeff #MO coeffs
         enu = mf.energy_nuc()
-
-        from pyscf import symm
-        mo = symm.symmetrize_orb(mol, mf.mo_coeff)
-        osym = symm.label_orb_symm(mol, mol.irrep_name, mol.symm_orb, mo)
-        #symm.addons.symmetrize_space(mol, mo, s=None, check=True, tol=1e-07)
-        for i in range(len(osym)):
-            print("%4d %8s %16.8f"%(i+1,osym[i],mf.mo_energy[i]))
+        self.Escf = mf.e_tot
+       
+        print(mf.get_fock())
+        print(np.linalg.eig(mf.get_fock())[0])
+        
+        if mol.symmetry == True:
+            from pyscf import symm
+            mo = symm.symmetrize_orb(mol, mf.mo_coeff)
+            osym = symm.label_orb_symm(mol, mol.irrep_name, mol.symm_orb, mo)
+            #symm.addons.symmetrize_space(mol, mo, s=None, check=True, tol=1e-07)
+            for i in range(len(osym)):
+                print("%4d %8s %16.8f"%(i+1,osym[i],mf.mo_energy[i]))
 
         #orbitals and lectrons
         n_orb = mol.nao_nr()
         n_b , n_a = mol.nelec 
         nel = n_a + n_b
+        self.n_orb = mol.nao_nr()
 
 
         if cas == True:
@@ -103,7 +115,7 @@ class PyscfHelper(object):
         elif orb_basis == 'boys2':
             pyscf.lib.num_threads(1)  #with degenerate states and multiple processors there can be issues
             cl_c = mf.mo_coeff[:, :loc_nstart]
-            cl_a = lo.Boys(mol, mf.mo_coeff[:, loc_nstart:loc_nstop],conv_tol=1e-9).kernel(verbose=4)
+            cl_a = lo.Boys(mol, mf.mo_coeff[:, loc_nstart:loc_nstop]).kernel(verbose=4)
             cl_v = mf.mo_coeff[:, loc_nstop:]
             C = np.column_stack((cl_c, cl_a, cl_v))
 
@@ -181,6 +193,30 @@ class PyscfHelper(object):
             self.ecore = ecore
             self.mf = mf
             self.mol = mol
+            self.C = cp.deepcopy(C[:,cas_nstart:cas_nstop])
+            J,K = mf.get_jk()
+            self.J = self.C.T @ J @ self.C
+            self.K = self.C.T @ J @ self.C
+            if 0:
+                h = C.T.dot(mf.get_hcore()).dot(C)
+                g = ao2mo.kernel(mol,C,aosym='s4',compact=False).reshape(4*((n_orb),))
+                const,heff = get_eff_for_casci(cas_nstart,cas_nstop,h,g)
+                print(heff)
+                print("const",const)
+                print("ecore",ecore)
+                
+                idx = range(cas_nstart,cas_nstop)
+                h = h[:,idx] 
+                h = h[idx,:] 
+                g = g[:,:,:,idx] 
+                g = g[:,:,idx,:] 
+                g = g[:,idx,:,:] 
+                g = g[idx,:,:,:] 
+
+                self.ecore = const
+                self.h = h + heff
+                self.g = g 
+
 
         elif cas==False:
             h = C.T.dot(mf.get_hcore()).dot(C)
@@ -192,6 +228,10 @@ class PyscfHelper(object):
             self.ecore = enu
             self.mf = mf
             self.mol = mol
+            self.C = C
+            J,K = mf.get_jk()
+            self.J = self.C.T @ J @ self.C
+            self.K = self.C.T @ J @ self.C
     # }}}
 
 def run_fci_pyscf( h, g, nelec, ecore=0,nroots=1):
@@ -305,6 +345,54 @@ def ordering(pmol,cas,cas_nstart,cas_nstop,loc_nstart,loc_nstop,ordering='hcore'
     return idx
     # }}}
 
+def ordering_diatomics(mol,C):
+# {{{
+    ##DZ basis diatomics reordering with frozen 1s
+
+    orb_type = ['s','pz','dz','px','dxz','py','dyz','dx2-y2','dxy']
+    ref = np.zeros(C.shape[1]) 
+
+    ## Find dimension of each space
+    dim_orb = []
+    for orb in orb_type:
+        print("Orb type",orb)
+        idx = 0
+        for label in mol.ao_labels():
+            if orb in label:
+                #print(label)
+                idx += 1
+
+        ##frozen 1s orbitals
+        if orb == 's':
+            idx -= 2 
+        dim_orb.append(idx)
+        print(idx)
+    
+
+    new_idx = []
+    ## Find orbitals corresponding to each orb space
+    for i,orb in enumerate(orb_type):
+        print("Orbital type:",orb)
+        from pyscf import mo_mapping
+        s_pop = mo_mapping.mo_comps(orb, mol, C)
+        #print(s_pop)
+        ref += s_pop
+        cas_list = s_pop.argsort()[-dim_orb[i]:]
+        print('cas_list', np.array(cas_list))
+        new_idx.extend(cas_list) 
+        #print(orb,' population for active space orbitals', s_pop[cas_list])
+
+    ao_labels = mol.ao_labels()
+    #idx = mol.search_ao_label(['N.*s'])
+    #for i in idx:
+    #    print(i, ao_labels[i])
+    print(ref)
+    print(new_idx)
+    for label in mol.ao_labels():
+        print(label)
+
+    return new_idx
+# }}}
 
 class Psi4Helper(object):
     """

@@ -111,11 +111,21 @@ def run_cmf_iter(blocks,Cluster,tei):
         n_a = Cluster[a].n_a
         n_b = Cluster[a].n_b
 
-        from pyscf import fci
-        cisolver = fci.direct_spin0.FCI()
-        efci, ci = cisolver.kernel(heff, ga, norb_a, (n_a,n_b), ecore=0,nroots =1,verbose=100)
-        fci_dim = ci.shape[0]*ci.shape[1]
-        ci = ci.reshape(1,fci_dim)
+        if n_a+n_b != 0:
+            from pyscf import fci
+            cisolver = fci.direct_spin0.FCI()
+            efci, ci = cisolver.kernel(heff, ga, norb_a, (n_a,n_b), ecore=0,nroots =1,verbose=100)
+            print(efci)
+            #efci = efci[0]
+            #ci = ci[0]
+            fci_dim = ci.shape[0]*ci.shape[1]
+            ci = ci.reshape(1,fci_dim)
+        else:
+            efci, ci = cisolver.kernel(heff, ga, norb_a, (n_a,n_b), ecore=0,nroots =1,verbose=6)
+            #print(ci)
+            print(efci)
+            fci_dim = ci.shape[0]*ci.shape[1]
+            ci = ci.reshape(1,fci_dim)
 
         ## make tdm
         d1,d2 = cisolver.make_rdm1s(ci, ha.shape[1], (n_a,n_b))
@@ -245,23 +255,30 @@ def run_cmf(h,g,blocks,fspace,ecore=0,miter=50):
             #ci = ci.reshape(nCr(norb_a,n_a),nCr(norb_a,n_b))
 
         if 1:
-            from pyscf import fci
-            cisolver = fci.direct_spin1.FCI()  #singelt
-            #cisolver = fci.addons.fix_spin_(fci.FCI(nelec=(n_a,n_b)), shift=.5)
-            #cisolver = fci.addons.fix_spin_(cisolver, ss=0)
-            #cisolver = fci.direct_spin1.FCI()
-            efci, ci = cisolver.kernel(ha, ga, norb_a, (n_a,n_b), ecore=0,nroots =0,verbose=6)
-            #print(ci)
-            print(efci)
-            fci_dim = ci.shape[0]*ci.shape[1]
+            if n_a+n_b != 0:
+                from pyscf import fci
+                cisolver = fci.direct_spin0.FCI()
+                efci, ci = cisolver.kernel(ha, ga, norb_a, (n_a,n_b), ecore=0,nroots =1,verbose=100)
+                print(efci)
+                #efci = efci[0]
+                #ci = ci[0]
+                fci_dim = ci.shape[0]*ci.shape[1]
+                ci = ci.reshape(1,fci_dim)
+            else:
+                efci, ci = cisolver.kernel(ha, ga, norb_a, (n_a,n_b), ecore=0,nroots =1,verbose=6)
+                #print(ci)
+                print(efci)
+                fci_dim = ci.shape[0]*ci.shape[1]
+                ci = ci.reshape(1,fci_dim)
 
             ## fci
-            cluster[a].tucker_vecs(ci.reshape(1,fci_dim),efci) #Only one P vector right now
+            cluster[a].tucker_vecs(ci,efci) #Only one P vector right now
 
             ## make tdm
             d1,d2 = cisolver.make_rdm1s(ci, ha.shape[1], (n_a,n_b))
             cluster[a].store_tdm("ca_aa",d1)
             cluster[a].store_tdm("ca_bb",d2)
+
         
         print("Diagonalzation of each cluster local Hamiltonian    %16.8f:"%efci)
 
