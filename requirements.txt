@@ -2,7 +2,6 @@ Babel==2.9.1
 cmf==0
 h5py==2.10.0
 idna==2.8
-Jinja2==2.10.1
 more-itertools==7.2.0
 numpy==1.21
 opt-einsum==3.0.1
