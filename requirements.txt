@@ -3,7 +3,7 @@ cmf==0
 h5py==2.10.0
 idna==2.8
 more-itertools==7.2.0
-numpy==1.21
+numpy==1.21.0
 opt-einsum==3.0.1
 packaging==19.1
 pluggy==0.13.0
